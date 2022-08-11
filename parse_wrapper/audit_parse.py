@@ -84,17 +84,11 @@ def display(message, verbose=False, exit=0):
     if show_time:
         now = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, '%Y/%m/%d %H:%M:%S')
-        message = '{} {}'.format(timestamp, message)
+        message = f'{timestamp} {message}'
 
-    out = sys.stdout
-    if exit > 0:
-        out = sys.stderr
-
-    if verbose and show_verbose:
+    out = sys.stderr if exit > 0 else sys.stdout
+    if verbose and show_verbose or not verbose:
         out.write(message.rstrip() + '\n')
-    elif not verbose:
-        out.write(message.rstrip() + '\n')
-
     if exit > 0:
         sys.exit(exit)
 
@@ -123,9 +117,8 @@ def find_audits(paths):
     if len(audits) < 1:
         display('No audits to process.', exit=True)
     else:
-        s = ''
-        if len(audits) > 1: s = 's'
-        display('{} audit{} to process.'.format(len(audits), s), verbose=True)
+        s = 's' if len(audits) > 1 else ''
+        display(f'{len(audits)} audit{s} to process.', verbose=True)
     return sorted(audits)
 
 
@@ -143,7 +136,7 @@ def find_nasl(path):
     if nasl is None:
         display('Nessus executable not found.', exit=True)
     else:
-        display('Using Nessus executable at {}.'.format(nasl), verbose=True)
+        display(f'Using Nessus executable at {nasl}.', verbose=True)
 
     return nasl
 
@@ -167,12 +160,15 @@ def find_plugins(path, nasl):
             continue
         plugins[key] = info
 
-    if plugins == {}:
+    if not plugins:
         display('Compliance plugins are not found.', exit=True)
     else:
-        s = ''
-        if len(plugins) > 1: s = 's'
-        display('Plugin{} supported: {}'.format(s, ', '.join(sorted(list(plugins)))), verbose=True)
+        s = 's' if len(plugins) > 1 else ''
+        display(
+            f"Plugin{s} supported: {', '.join(sorted(list(plugins)))}",
+            verbose=True,
+        )
+
 
     return plugins
 
@@ -185,7 +181,7 @@ def get_plugin_info(filename, nasl):
     res = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if res.returncode > 0:
         display(res.stderr.decode('ascii'), verbose=True)
-        display('Error getting info for plugin: {}'.format(filename), exit=True)
+        display(f'Error getting info for plugin: {filename}', exit=True)
 
     tree = ET.fromstring(res.stdout.decode('ascii'))
     attribs = tree.find('attributes')
@@ -218,15 +214,19 @@ def parse_audit(audit, plugins, nasl):
     if check_type not in plugins:
         return None
 
-    display('Running nasl to parse audit: {}'.format(audit), verbose=True)
+    display(f'Running nasl to parse audit: {audit}', verbose=True)
     with tempfile.TemporaryDirectory() as tmpdirname:
         output = os.path.join(tmpdirname, 'convert.json')
         command = [
-            nasl, '-X',
-            '-P', 'compliance_parse_input={}'.format(audit),
-            '-P', 'compliance_parse_output={}'.format(output),
-            plugins[check_type]['file']
+            nasl,
+            '-X',
+            '-P',
+            f'compliance_parse_input={audit}',
+            '-P',
+            f'compliance_parse_output={output}',
+            plugins[check_type]['file'],
         ]
+
         res = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         try:
@@ -234,7 +234,7 @@ def parse_audit(audit, plugins, nasl):
                 data = json.load(j_in)
         except:
             display(res.stderr.decode('ascii'), verbose=True)
-            display('Error parsing audit: {}'.format(audit), exit=True)
+            display(f'Error parsing audit: {audit}', exit=True)
 
     return data
 
@@ -244,25 +244,25 @@ def write_json_file(audit, data, output, replace=False):
         try:
             os.mkdir(output)
         except:
-            display('Unable to create ouput directory: {}'.format(output), exit=True)
+            display(f'Unable to create ouput directory: {output}', exit=True)
 
-    name = '{}.json'.format(os.path.basename(audit).replace('.audit', ''))
+    name = f"{os.path.basename(audit).replace('.audit', '')}.json"
     filepath = os.path.join(output, name)
 
     if os.path.isfile(filepath) and not replace:
-        display('Unable to overwrite file: {}'.format(filepath), exit=True)
+        display(f'Unable to overwrite file: {filepath}', exit=True)
 
     with open(filepath, 'w') as j_out:
         json.dump(data, j_out)
 
-    display('Wrote data to file: {}'.format(filepath), verbose=True)
+    display(f'Wrote data to file: {filepath}', verbose=True)
 
 
 def display_audit_info(audit, data):
-    display('Audit: {}'.format(audit))
+    display(f'Audit: {audit}')
 
     display('Metadata:')
-    form = '    {:' + str(max([len(k) for k in data['meta']])) + '} : {}'
+    form = '    {:' + str(max(len(k) for k in data['meta'])) + '} : {}'
     for key in sorted(data['meta']):
         if key in ('variables',):
             continue
@@ -272,18 +272,18 @@ def display_audit_info(audit, data):
             display(form.format(key, data['meta'][key]))
 
     display('Plugin:')
-    form = '    {:' + str(max([len(k) for k in data['plugin']])) + '} : {}'
+    form = '    {:' + str(max(len(k) for k in data['plugin'])) + '} : {}'
     for key in sorted(data['plugin']):
         display(form.format(key, data['plugin'][key]))
 
     display('Errors:')
     for item in data['errors']:
-        display('    {}'.format(item))
+        display(f'    {item}')
 
 
 def display_audit_json(audit, data, display_name=False):
     if display_name:
-        display('Audit: {}'.format(audit))
+        display(f'Audit: {audit}')
     print(json.dumps(data, indent=2))
 
 
@@ -298,7 +298,7 @@ if __name__ == '__main__':
     for audit in audits:
         data = parse_audit(audit, plugins, nasl)
         if data is None:
-            display('Unable to process audit: {}'.format(audit))
+            display(f'Unable to process audit: {audit}')
         elif args.output is not None:
             write_json_file(audit, data, args.output, args.replace)
         elif args.json:

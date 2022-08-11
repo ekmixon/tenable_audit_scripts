@@ -68,8 +68,8 @@ def parse_args(parameters):
     args.audit = make_list(args.audit)[0]
     args.nessus = make_list(args.nessus)[0]
 
-    if not args.reference == '' and not regexes['ref_arg'].match(args.reference):
-        display('Invalid reference parameter ([A-Za-z_-]+): {}'.format(args.reference), exit=1)
+    if args.reference != '' and not regexes['ref_arg'].match(args.reference):
+        display(f'Invalid reference parameter ([A-Za-z_-]+): {args.reference}', exit=1)
 
     return args
 
@@ -89,17 +89,11 @@ def display(message, verbose=False, exit=0):
     if show_time:
         now = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, '%Y/%m/%d %H:%M:%S')
-        message = '{} {}'.format(timestamp, message)
+        message = f'{timestamp} {message}'
 
-    out = sys.stdout
-    if exit > 0:
-        out = sys.stderr
-
-    if verbose and show_verbose:
+    out = sys.stderr if exit > 0 else sys.stdout
+    if verbose and show_verbose or not verbose:
         out.write(message.rstrip() + '\n')
-    elif not verbose:
-        out.write(message.rstrip() + '\n')
-
     if exit > 0:
         sys.exit(exit)
 
@@ -107,25 +101,25 @@ def display(message, verbose=False, exit=0):
 def read_file(filename):
     contents = ''
     try:
-        display('Reading {}'.format(filename), verbose=True)
+        display(f'Reading {filename}', verbose=True)
         with open(filename, 'r') as file_in:
             contents = file_in.read()
     except Exception as e:
-        display('ERROR: reading file: {}: {}'.format(filename, e), exit=1)
+        display(f'ERROR: reading file: {filename}: {e}', exit=1)
 
     return contents
 
 
 def write_file(filename, content, overwrite=False):
     if os.path.isfile(filename) and not overwrite:
-        display('ERROR: file exists: {}'.format(filename), exit=1)
+        display(f'ERROR: file exists: {filename}', exit=1)
 
     try:
-        display('Writing {}'.format(filename), verbose=True)
+        display(f'Writing {filename}', verbose=True)
         with open(filename, 'w') as file_out:
             file_out.write(content)
     except Exception as e:
-        display('ERROR: writing file: {}: {}'.format(filename, e), exit=1)
+        display(f'ERROR: writing file: {filename}: {e}', exit=1)
 
 
 def get_values_from_nessus(contents):
@@ -137,8 +131,7 @@ def get_values_from_nessus(contents):
         for report in tree.findall('Report'):
             for host in report.findall('ReportHost'):
                 hostname = host.attrib['name']
-                display('Retrieving values from {}'.format(hostname),
-                        verbose=True)
+                display(f'Retrieving values from {hostname}', verbose=True)
                 values[hostname] = {}
                 for item in host.findall('ReportItem'):
                     description = ''
@@ -154,7 +147,7 @@ def get_values_from_nessus(contents):
                     if description and value != no_value and result != no_value:
                         values[hostname][description] = (value, result)
     except Exception as e:
-        display('ERROR: parsing nessus file: {}'.format(e), exit=1)
+        display(f'ERROR: parsing nessus file: {e}', exit=1)
         sys.exit(1)
 
     return values
@@ -163,7 +156,7 @@ def get_values_from_nessus(contents):
 def create_filename(filename, hostname):
     basefile = '.'.join(filename.split('.')[:-1])
     ext = filename.split('.')[-1]
-    return '{}.{}.{}'.format(basefile, hostname, ext)
+    return f'{basefile}.{hostname}.{ext}'
 
 
 def strip_quotes(target):
@@ -198,12 +191,11 @@ def quote_and_escape_value(source, plugin):
     if not isinstance(source, str):
         return source
 
-    if '"' in source and "'" not in source and not plugin in ('Unix',):
-        value = "'{}'".format(source)
-    else:
-        value = '"{}"'.format(source.replace('"', '\\"'))
-
-    return value
+    return (
+        f"'{source}'"
+        if '"' in source and "'" not in source and plugin not in ('Unix',)
+        else '"{}"'.format(source.replace('"', '\\"'))
+    )
 
 
 def apply_values_to_audit(filename, contents, values, reference=''):
@@ -215,7 +207,7 @@ def apply_values_to_audit(filename, contents, values, reference=''):
 
     lines = contents.split('\n')
     for host in values:
-        display('Applying values for {}'.format(host), verbose=True)
+        display(f'Applying values for {host}', verbose=True)
         auditname = create_filename(filename, host)
         audit_lines = []
         in_condition = False
@@ -237,13 +229,13 @@ def apply_values_to_audit(filename, contents, values, reference=''):
                 found_ref = False
 
             elif regexes['eitem'].match(line):
-                if not reference == '' and not found_ref:
+                if reference != '' and not found_ref:
                     value = format_reference(result, reference)
-                    new_line = '{}reference : "{}"'.format(space, value)
+                    new_line = f'{space}reference : "{value}"'
                     audit_lines.append(new_line)
-                if not known_good == '':
+                if known_good != '':
                     value = quote_and_escape_value(known_good, plugin)
-                    new_line = '{}known_good : {}'.format(space, value)
+                    new_line = f'{space}known_good : {value}'
                     audit_lines.append(new_line)
                 known_good = ''
                 result = None
@@ -258,7 +250,7 @@ def apply_values_to_audit(filename, contents, values, reference=''):
                     result = values[host][stripped][1]
                     space = regexes['desc'].findall(line)[0]
 
-            elif not reference == '' and regexes['ref'].match(line):
+            elif reference != '' and regexes['ref'].match(line):
                 elements = line.split('"')
                 current_refs = elements[1].split(',')
                 for x in range(len(current_refs)):
@@ -287,7 +279,7 @@ def format_reference(result, reference):
         dev = 'deviation'
     elif result == 'PASSED':
         dev = 'compliant'
-    return '{}|{}'.format(reference, dev)
+    return f'{reference}|{dev}'
 
 
 def output_audits(audits, overwrite, output_file):

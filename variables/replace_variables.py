@@ -60,17 +60,11 @@ def display(message, verbose=False, exit=0):
     if show_time:
         now = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, '%Y/%m/%d %H:%M:%S')
-        message = '{} {}'.format(timestamp, message)
+        message = f'{timestamp} {message}'
 
-    out = sys.stdout
-    if exit > 0:
-        out = sys.stderr
-
-    if verbose and show_verbose:
+    out = sys.stderr if exit > 0 else sys.stdout
+    if verbose and show_verbose or not verbose:
         out.write(message.rstrip() + '\n')
-    elif not verbose:
-        out.write(message.rstrip() + '\n')
-
     if exit > 0:
         sys.exit(exit)
 
@@ -87,25 +81,25 @@ def make_list(target=None):
 def read_file(filename):
     contents = ''
     try:
-        display('Reading {}'.format(filename), verbose=True)
+        display(f'Reading {filename}', verbose=True)
         with open(filename, 'r') as file_in:
             contents = file_in.read()
     except Exception as e:
-        display('ERROR: reading file: {}: {}'.format(filename, e), exit=1)
+        display(f'ERROR: reading file: {filename}: {e}', exit=1)
 
     return contents
 
 
 def write_file(filename, content, overwrite=False):
     if os.path.isfile(filename) and not overwrite:
-        display('ERROR: file exists: {}'.format(filename), exit=1)
-    
+        display(f'ERROR: file exists: {filename}', exit=1)
+
     try:
-        display('Writing {}'.format(filename), verbose=True)
+        display(f'Writing {filename}', verbose=True)
         with open(filename, 'w') as file_out:
             file_out.write(content)
     except Exception as e:
-        display('ERROR: writing file: {}: {}'.format(filename, e), exit=1)
+        display(f'ERROR: writing file: {filename}: {e}', exit=1)
 
 
 def get_variables(content=None):
@@ -125,12 +119,10 @@ def get_variables(content=None):
                 value = values[0]
 
             if name is not None and value is not None:
-                display('Found variable @{}@ = {}'.format(name, value),
-                        verbose=True)
+                display(f'Found variable @{name}@ = {value}', verbose=True)
                 variables[name] = value
             else:
-                display('ERROR: Invalid variable @{}@ = {}'.format(name, value),
-                        exit=1)
+                display(f'ERROR: Invalid variable @{name}@ = {value}', exit=1)
 
     return variables
 
@@ -144,7 +136,7 @@ def replace_variable_values(content, variables):
         line = lines[i]
         if '@' in line:
             for var in variables:
-                name = '@{}@'.format(var)
+                name = f'@{var}@'
                 if name in line and line.strip()[0] != '#':
                     display(msg.format(name, variables[var], i + 1),
                             verbose=True)
@@ -159,7 +151,7 @@ def replace_variable_values(content, variables):
                     })
 
 
-        if len(old) > 0:
+        if old:
             remove = []
             for n in range(len(old)):
                 field = old[n]['field']

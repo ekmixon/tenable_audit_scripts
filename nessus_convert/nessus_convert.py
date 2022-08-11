@@ -51,8 +51,15 @@ def parse_args(parameters):
 
     parser = argparse.ArgumentParser(description='Read .nessus and convert to different format')
 
-    parser.add_argument('-f', '--format', type=str, nargs=1, default=[ 'json' ],
-                        help='format to output; {}'.format(', '.join(formats)))
+    parser.add_argument(
+        '-f',
+        '--format',
+        type=str,
+        nargs=1,
+        default=['json'],
+        help=f"format to output; {', '.join(formats)}",
+    )
+
 
     parser.add_argument('-i', '--include_ids', action='store_true',
                         help='include internal identifiers')
@@ -78,7 +85,7 @@ def parse_args(parameters):
     args.format = args.format[0]
 
     if args.format not in formats:
-        display('ERROR: Unknown file format: {}'.format(args.format), exit_code=1)
+        display(f'ERROR: Unknown file format: {args.format}', exit_code=1)
 
     return args
 
@@ -89,17 +96,14 @@ def display(message, verbose=False, exit_code=0):
     if show_time:
         now = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, '%Y/%m/%d %H:%M:%S')
-        message = '{} {}'.format(timestamp, message)
+        message = f'{timestamp} {message}'
 
     out = sys.stdout
     if exit_code > 0:
         out = sys.stderr
 
-    if verbose and show_verbose:
+    if verbose and show_verbose or not verbose:
         out.write(message.rstrip() + '\n')
-    elif not verbose:
-        out.write(message.rstrip() + '\n')
-
     out.flush()
 
     if exit_code > 0:
@@ -109,7 +113,7 @@ def display(message, verbose=False, exit_code=0):
 def get_compliance_data(filename):
     data = []
     if not os.path.isfile(filename):
-        display('File does not exist: {}'.format(filename), exitcode=2)
+        display(f'File does not exist: {filename}', exitcode=2)
 
     try:
         report_name = 'None'
@@ -123,14 +127,14 @@ def get_compliance_data(filename):
                 report_name = elem.text
 
             elif event == 'start':
-                if elem.tag == 'ReportHost':
+                if elem.tag == 'HostProperties':
+                    record_host_properties = True
+
+                elif elem.tag == 'ReportHost':
                     host_value = {
                       'report': report_name,
                       'target': elem.attrib.get('name', None)
                     }
-
-                elif elem.tag == 'HostProperties':
-                    record_host_properties = True
 
                 elif elem.tag == 'ReportItem':
                     item_value = {
@@ -169,7 +173,7 @@ def get_compliance_data(filename):
                         item_value[field.replace('-', '_')] = elem.text
 
     except Exception as e:
-        display('ERROR: get_compliance_data(): {}'.format(e), exit_code=1)
+        display(f'ERROR: get_compliance_data(): {e}', exit_code=1)
 
     return data
 
@@ -215,11 +219,9 @@ def collapse(data):
                 collapsed[k] = item[k]
             elif item[k] != collapsed[k]:
                 collapsed[k] = 'multiple'
-            elif item[k] == collapsed[k]:
-                continue
             else:
-                display('WARNING: Unknown result key: {}'.format(k))
-        actuals.append('{} {}:{}'.format(actual_desc, short_desc.strip(), actual_value))
+                continue
+        actuals.append(f'{actual_desc} {short_desc.strip()}:{actual_value}')
 
 
     collapsed['reference'] = ','.join(sorted(refs))
@@ -257,19 +259,16 @@ def sanitize_ids(data):
     new_data = []
 
     for item in data:
-        new_item = {}
-        for k in item:
-            if k[-3:] != '_id':
-                new_item[k] = item[k]
+        new_item = {k: item[k] for k in item if k[-3:] != '_id'}
         new_data.append(new_item)
-        
+
     return new_data
 
 
 def write_data(filename, file_format, data):
     new_file = '.'.join(filename.split('.')[:-1]) + '.' + file_format
     if os.path.isfile(new_file) and not args.overwrite:
-        display('WARNING: File exists, not writing: {}'.format(new_file))
+        display(f'WARNING: File exists, not writing: {new_file}')
         return
 
     if file_format.lower() == 'csv':
@@ -279,9 +278,9 @@ def write_data(filename, file_format, data):
 
 
 def write_csv(filename, data):
-    display('Writing CSV file: {}'.format(filename))
+    display(f'Writing CSV file: {filename}')
 
-    fields = set(['target'])
+    fields = {'target'}
     values = []
     for host in data:
         target = host['target']
@@ -305,11 +304,11 @@ def write_csv(filename, data):
             for value in values:
                 writer.writerow(value)
     except Exception as e:
-        display('ERROR: write_csv_file(): writing file: {}: {}'.format(filename, e), exit_code=1)
+        display(f'ERROR: write_csv_file(): writing file: {filename}: {e}', exit_code=1)
 
 
 def write_json(filename, data):
-    display('Writing JSON file: {}'.format(filename))
+    display(f'Writing JSON file: {filename}')
     with open(filename, 'w') as jout:
         json.dump(data, jout)
 
@@ -318,14 +317,18 @@ if __name__ == '__main__':
     args = parse_args(sys.argv[1:])
 
     for filename in args.files:
-        display('Processing file: {}'.format(filename))
+        display(f'Processing file: {filename}')
         data = get_compliance_data(filename)
         for host in data:
-            display('Found {} results for host {}.'.format(len(host['results']), host['target']), verbose=True)
+            display(
+                f"Found {len(host['results'])} results for host {host['target']}.",
+                verbose=True,
+            )
+
 
             if args.rollup:
                 host['results'] = rollup(host['results'])
-                display('Rolling up results to {}.'.format(len(host['results'])))
+                display(f"Rolling up results to {len(host['results'])}.")
 
             if not args.include_ids:
                 host['results'] = sanitize_ids(host['results'])
