@@ -50,17 +50,11 @@ def display(message, verbose=False, exit=0):
     if show_time:
         now = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, '%Y/%m/%d %H:%M:%S')
-        message = '{} {}'.format(timestamp, message)
+        message = f'{timestamp} {message}'
 
-    out = sys.stdout
-    if exit > 0:
-        out = sys.stderr
-
-    if verbose and show_verbose:
+    out = sys.stderr if exit > 0 else sys.stdout
+    if verbose and show_verbose or not verbose:
         out.write(message.rstrip() + '\n')
-    elif not verbose:
-        out.write(message.rstrip() + '\n')
-
     if exit > 0:
         sys.exit(exit)
 
@@ -77,11 +71,11 @@ def make_list(target=None):
 def read_file(filename):
     contents = ''
     try:
-        display('Reading {}'.format(filename), verbose=True)
+        display(f'Reading {filename}', verbose=True)
         with open(filename, 'r') as file_in:
             contents = file_in.read()
     except Exception as e:
-        display('ERROR: reading file: {}: {}'.format(filename, e), exit=1)
+        display(f'ERROR: reading file: {filename}: {e}', exit=1)
 
     return contents
 

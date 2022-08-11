@@ -19,19 +19,15 @@ def print_results(nessus_file):
 
     for report_item in root.iter("ReportItem"):
         if report_item.attrib["pluginFamily"] == "Policy Compliance":
-            print('\n{}\n'.format(
-              report_item.findall('.//description')[0].text
-            ))
+            print(f"\n{report_item.findall('.//description')[0].text}\n")
 
 
 def get_plugin(file):
-    
+
     with open(file) as fobj:
 
         for line in fobj:
-            plugin = re.findall('<check_type:"(.*?)"', line)
-        
-            if plugin:
+            if plugin := re.findall('<check_type:"(.*?)"', line):
                 return plugin[0]
 
     print(f'[!] ERROR: plugin not detected in {file}. Exiting.')
@@ -39,14 +35,14 @@ def get_plugin(file):
     
 
 def upload_audits(tio, files):
-    
+
     audits = {
         'custom': {
             'add': []
         }
     }
 
-    print(f'[+] Uploading audits')
+    print('[+] Uploading audits')
 
     for file in files:
 
@@ -93,7 +89,7 @@ def scan(access_key, secret_key, scanner, name, targets, template, audit_files, 
     tio.scans.launch(scan['id'])
 
     if wait_for_scan(tio, scan['id']) == 'completed':
-        print(f'[+] Exporting scan')
+        print('[+] Exporting scan')
         with open(f'{name}.nessus' ,'wb') as reportobj:
             tio.scans.export(scan['id'], fobj=reportobj)
             print(f'    saved to {name}.nessus')
@@ -141,9 +137,12 @@ def get_creds(tio, uuids):
     for uuid in uuids:
         for tio_cred in tio_creds:
             if tio_cred["uuid"] == uuid:
-                if not tio_cred["category"]["id"] in results:
+                if tio_cred["category"]["id"] not in results:
                     results[tio_cred["category"]["id"]] = {}
-                if not tio_cred["type"]["id"] in results[tio_cred["category"]["id"]]:
+                if (
+                    tio_cred["type"]["id"]
+                    not in results[tio_cred["category"]["id"]]
+                ):
                     results[tio_cred["category"]["id"]][tio_cred["type"]["id"]] = []
                 results[tio_cred["category"]["id"]][tio_cred["type"]["id"]].append(
                     { 'id': uuid }

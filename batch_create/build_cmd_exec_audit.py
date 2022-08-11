@@ -30,8 +30,14 @@ def parse_args(parameters):
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='show verbose output')
 
-    parser.add_argument('-o', '--output', nargs=1, default=default_audit,
-                        help='output audit name: {}'.format(default_audit))
+    parser.add_argument(
+        '-o',
+        '--output',
+        nargs=1,
+        default=default_audit,
+        help=f'output audit name: {default_audit}',
+    )
+
 
     parser.add_argument('shell', nargs=1, type=str,
                         help='location of shell files')
@@ -51,10 +57,7 @@ def parse_args(parameters):
 
 def list_or_string(target=None):
     if isinstance(target, list):
-        if len(target) > 0:
-            return target[0]
-        else:
-            return None
+        return target[0] if len(target) > 0 else None
     return target
 
 
@@ -64,17 +67,11 @@ def display(message, verbose=False, exit=0):
     if show_time:
         now = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, '%Y/%m/%d %H:%M:%S')
-        message = '{} {}'.format(timestamp, message)
+        message = f'{timestamp} {message}'
 
-    out = sys.stdout
-    if exit > 0:
-        out = sys.stderr
-
-    if verbose and show_verbose:
+    out = sys.stderr if exit > 0 else sys.stdout
+    if verbose and show_verbose or not verbose:
         out.write(message.rstrip() + '\n')
-    elif not verbose:
-        out.write(message.rstrip() + '\n')
-
     if exit > 0:
         sys.exit(exit)
 
@@ -85,14 +82,17 @@ def get_sh_scripts(location):
 
     if os.path.isdir(location):
         for (root, dirs, files) in os.walk(location):
-            for filename in files:
-                if filename.split('.')[-1] in exts:
-                    scripts.append(os.path.join(root, filename))
+            scripts.extend(
+                os.path.join(root, filename)
+                for filename in files
+                if filename.split('.')[-1] in exts
+            )
+
     elif os.path.isfile(location):
         if filename.split('.')[-1] in exts:
             scripts.append(os.path.join(location))
 
-    if len(scripts) == 0:
+    if not scripts:
         display('[!] ERROR: source shell location not found', exit=True)
 
     return scripts
@@ -107,15 +107,12 @@ def convert_script_to_item(source, destination=None):
     with open(source, 'r') as s_in:
         script = s_in.read().strip()
 
-    settings = {}
-    for key, val in setting_re.findall(script):
-        settings[key.lower()] = val
-
+    settings = {key.lower(): val for key, val in setting_re.findall(script)}
     content = script.replace('\\', '\\\\').replace('"', '\\"')
 
-    desc = settings.get('name', 'CMD: {}'.format(basename))
+    desc = settings.get('name', f'CMD: {basename}')
     expect = settings.get('expect', 'ManualReview').replace('\\', '\\\\').replace('"', '\\"')
-    check_type = 'CHECK_{}'.format(settings.get('type', 'REGEX'))
+    check_type = f"CHECK_{settings.get('type', 'REGEX')}"
 
     item = '''<custom_item>
   type          : CMD_EXEC
@@ -127,7 +124,7 @@ def convert_script_to_item(source, destination=None):
 '''
     check = item.format(desc, content, expect)
 
-    display('[-]   {}: "{}" is expecting "{}"'.format(source, desc, expect))
+    display(f'[-]   {source}: "{desc}" is expecting "{expect}"')
 
     return check
 
@@ -151,9 +148,9 @@ if __name__ == '__main__':
     args = parse_args(sys.argv[1:])
     display('[+] Start', verbose=True)
 
-    display('[+] Retrieving shell scripts from "{}"'.format(args.shell))
+    display(f'[+] Retrieving shell scripts from "{args.shell}"')
     scripts = get_sh_scripts(args.shell)
-    display('[-]   found {} script{}'.format(len(scripts), 's' * (len(scripts) - 1)))
+    display(f"[-]   found {len(scripts)} script{'s' * (len(scripts) - 1)}")
 
     items = []
     display('[+] Processing scripts')
@@ -162,7 +159,7 @@ if __name__ == '__main__':
         if item is not None:
             items.append(item)
 
-    display('[+] Writing audit: {}'.format(args.output))
+    display(f'[+] Writing audit: {args.output}')
     output_audit(items, args.output)
 
     display('[+] Done', verbose=True)

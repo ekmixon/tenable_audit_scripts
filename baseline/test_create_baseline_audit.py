@@ -430,7 +430,7 @@ def test_get_plugin_from_contents():
 
 
 def test_quote_and_escape_value():
-    assert quote_and_escape_value(None, None) == None
+    assert quote_and_escape_value(None, None) is None
     assert quote_and_escape_value('', None) == '""'
     assert quote_and_escape_value('abc', None) == '"abc"'
     assert quote_and_escape_value("a'bc", None) == '"a\'bc"'
